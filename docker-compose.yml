@@ -1,0 +1,39 @@
+services:
+  db:
+    image: postgres:17
+    container_name: board-db
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      POSTGRES_DB: ${POSTGRES_DB:-board}
+    ports:
+      - "127.0.0.1:5433:5432"   # 내 컴퓨터(서버) 안에서만 접속 (5432는 다른 수업용 DB가 사용 중이라 5433)
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-board}"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    restart: unless-stopped
+
+  app:
+    build: .
+    container_name: board-api
+    env_file: .env
+    environment:
+      # 컨테이너끼리는 localhost 가 아니라 서비스 이름(db)으로 접속한다
+      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@db:5432/${POSTGRES_DB:-board}
+      UPLOAD_DIR: /app/storage
+    ports:
+      - "80:8000"               # 외부 80번 포트 -> 컨테이너 8000번
+    volumes:
+      - uploads:/app/storage    # 컨테이너를 다시 만들어도 업로드 파일 유지
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: unless-stopped
+
+volumes:
+  pgdata:
+  uploads:
